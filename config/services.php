@@ -35,4 +35,8 @@ return [
         ],
     ],
 
+    'user_service' => [
+    'base_url' => env('USER_SERVICE_BASE_URL', 'http://172.17.0.1:8000'),
+],
+
 ];
