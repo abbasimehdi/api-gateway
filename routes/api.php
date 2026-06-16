@@ -2,5 +2,7 @@
 
 use App\Http\Controllers\Api\GatewayController;
 
-Route::post('/gateway/users', [GatewayController::class, 'createUser']);
-Route::get('/gateway/users', [GatewayController::class, 'getUser']);
+// routes/api.php
+
+Route::any('/gateway/{service}/{path?}', [GatewayController::class, 'proxy'])
+    ->where('path', '.*');   // allow slashes in path

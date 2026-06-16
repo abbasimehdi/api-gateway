@@ -9,53 +9,60 @@ use Illuminate\Http\Client\RequestException;
 
 class GatewayController extends Controller
 {
-     public function getUser(Request $request)
-    {
-        try {
-            $userServiceUrl = config('services.user_service.base_url');
-            $response = Http::withHeaders([
-            'Accept'        => 'application/json',
-            ])->get($userServiceUrl . '/api/users');
-
-            // 4. Return the response from User Service to React
-            return response()->json($response->json(), $response->status());
-
-        } catch (RequestException $e) {
-            // User Service is unreachable
-            return response()->json([
-                'error' => 'User service unavailable',
-                'message' => $e->getMessage(),
-            ], 503);
-        }
-    }
-
     /**
-     * Forward user creation request to the User Service.
+     * Generic proxy for all microservices.
      */
-    public function createUser(Request $request)
+    public function proxy(Request $request, string $service, ?string $path = '')
     {
-        // 1. (Optional) Authenticate the request using Laravel Passport
-        //    Uncomment if you have Passport set up and want to protect this endpoint.
-        //    The user must send a Bearer token.
-        // $this->middleware('auth:api')->only('createUser');
+        // 1. Resolve the service base URL from config
+        $serviceConfigKey = $service . '_service';  // e.g., 'user_service'
+        $baseUrl = config("services.{$serviceConfigKey}.base_url");
 
-        // 2. Get User Service URL from config (or service discovery)
-        $userServiceUrl = config('services.user_service.base_url');
+        if (!$baseUrl) {
+            return response()->json([
+                'error'   => 'Service not found',
+                'message' => "No configuration for service '{$service}'",
+            ], 404);
+        }
 
-        // 3. Forward the request exactly as received
+        // 2. Build the full downstream URL
+        //    The original request URI is /gateway/{service}/{path}
+        //    We forward to {baseUrl}/{path} (the service itself decides the path)
+        $downstreamUrl = rtrim($baseUrl, '/') . '/' . ltrim($path, '/');
+
+        // 3. Prepare the request to forward
         try {
-            $response = Http::withHeaders([
-                // Forward the Authorization header if present (for downstream auth)
-                'Authorization' => $request->header('Authorization', ''),
-            ])->post($userServiceUrl . '/api/users', $request->all());
+            // Create the HTTP client instance
+            $http = Http::withHeaders(
+                // Forward all headers except Host (to avoid conflicts)
+                collect($request->headers->all())
+                    ->except('host')
+                    ->mapWithKeys(fn($value, $key) => [$key => $value[0]])
+                    ->toArray()
+            );
 
-            // 4. Return the response from User Service to React
-            return response()->json($response->json(), $response->status());
+            // Forward the Authorization header if present (already included in headers)
+            // Also forward other relevant headers (Accept, Content-Type, etc.)
+
+            // Get the request body as raw content (supports JSON, form data, files)
+            // For simplicity, we use $request->all() for form data or JSON.
+            // For file uploads, you'd need to use multipart, but we can handle it generically.
+            $body = $request->all();
+
+            // Choose the HTTP method dynamically
+            $method = strtolower($request->method());
+
+            // Forward the request
+            $response = $http->$method($downstreamUrl, $body);
+
+            // 4. Return the response from the downstream service
+            return response()->json($response->json(), $response->status())
+                ->withHeaders($response->headers()); // forward headers (Content-Type, etc.)
 
         } catch (RequestException $e) {
-            // User Service is unreachable
+            // Downstream service is unreachable or times out
             return response()->json([
-                'error' => 'User service unavailable',
+                'error'   => 'Service unavailable',
                 'message' => $e->getMessage(),
             ], 503);
         }
