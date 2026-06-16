@@ -2,14 +2,14 @@
 
 namespace App\Services\Gateway;
 
+use App\Services\Gateway\Contracts\ServiceRegistryInterface;
+use App\Services\Gateway\Exceptions\ServiceUnavailableException;
 use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Facades\Http;
-use App\Services\Gateway\Exceptions\ServiceNotFoundException;
-use App\Services\Gateway\Exceptions\ServiceUnavailableException;
 
 class GatewayProxy
 {
-    public function __construct(protected ServiceRegistry $registry) {}
+    public function __construct(protected ServiceRegistryInterface $registry) {}
 
     public function forward(ProxyRequest $request, string $service): array
     {
@@ -23,10 +23,7 @@ class GatewayProxy
 
             $response = $http->{$request->method}($url, $request->body);
 
-            $body = $response->json();
-            if (is_null($body)) {
-                $body = ['raw' => $response->body()];
-            }
+            $body = $response->json() ?? ['raw' => $response->body()];
 
             return [
                 'status'  => $response->status(),
