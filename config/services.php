@@ -36,11 +36,11 @@ return [
     ],
 
     'user_service' => [
-        'base_url' => env('USER_SERVICE_URL', 'http://172.17.0.1:8000'),
+        'base_url' => env('USER_SERVICE_URL', 'http://172.17.0.1:8000/api'),
     ],
     
     'product_service' => [
-        'base_url' => env('PRODUCT_SERVICE_URL', 'http://product-service.local'),
+        'base_url' => env('PRODUCT_SERVICE_URL', 'http://172.17.0.1:8001/api'),
     ],
 
 ];
